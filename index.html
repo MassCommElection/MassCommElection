@@ -118,19 +118,25 @@
         if (!selectedCandidateId) return alert("Please select a candidate before submitting.");
         
         if(confirm("Confirm your vote? This action cannot be reversed.")) {
-            // 1. Increment candidate vote count securely via SQL transaction or direct update
-            // (For a simple framework, we use a structured update here)
-            const { data: cData } = await supabase.from('candidates').select('votes').eq('id', selectedCandidateId).single();
-            await supabase.from('candidates').update({ votes: cData.votes + 1 }).eq('id', selectedCandidateId);
-
-            // 2. Lock voter record to prevent double voting
-            await supabase.from('eligible_voters').update({ has_voted: true }).eq('reg_number', currentVoterReg);
-
-            // Clear session
-            sessionStorage.clear();
             
-            document.getElementById('ballot-section').classList.add('hidden');
-            document.getElementById('success-section').classList.remove('hidden');
+            // Call the secure backend function we just pasted into Supabase
+            const { error } = await supabase.rpc('cast_secure_vote', {
+                target_reg_number: currentVoterReg,
+                target_candidate_id: selectedCandidateId
+            });
+
+            if (error) {
+                alert("Voting Error: " + error.message);
+                // If they already voted, clear their session and kick them out
+                sessionStorage.clear();
+                window.location.reload();
+            } else {
+                // Clear session data so they can't reuse the screen state
+                sessionStorage.clear();
+                
+                document.getElementById('ballot-section').classList.add('hidden');
+                document.getElementById('success-section').classList.remove('hidden');
+            }
         }
     });
 </script>
