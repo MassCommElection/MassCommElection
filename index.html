@@ -43,7 +43,7 @@
 <script>
     // Initialize Supabase (Replace with your actual keys)
     const SUPABASE_URL = "https://your-project-id.supabase.co";
-    const SUPABASE_ANON_KEY = "your-anon-public-key";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNreWtucGlwcHJ5amxnY2l0YWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMjEwODAsImV4cCI6MjA5NDY5NzA4MH0.cJPmWkgRlOLOKN4DGn_veEvAFi7Xfm-iVoF_YGH6Tm0";
     const supabase = '@supabase/supabase-js'.includes('cdn') ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let currentVoterReg = sessionStorage.getItem("voterReg") || null;
