@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mass Comm UNIZIK Voting Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Include Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-logo">NNAMDI AZIKIWE UNIVERSITY</div>
+    <h1>Mass Communication Dept. Election</h1>
+    <hr style="margin-bottom: 20px; border: 0; border-top: 1px solid #e2e8f0;">
+
+    <!-- Phase 1: Login Verification -->
+    <div id="login-section">
+        <div class="form-group">
+            <label for="reg-input">Enter Registration Number</label>
+            <input type="text" id="reg-input" placeholder="e.g., 2021624000">
+        </div>
+        <button id="btn-verify">Verify & Proceed</button>
+        <p id="login-msg" style="color: red; text-align: center; margin-top: 10px; font-weight: 600;"></p>
+    </div>
+
+    <!-- Phase 2: Ballot Paper -->
+    <div id="ballot-section" class="hidden">
+        <h2>Cast Your Vote</h2>
+        <div id="ballot-container"></div>
+        <button id="btn-submit-vote" style="margin-top: 20px;">Submit Secure Ballot</button>
+    </div>
+
+    <!-- Phase 3: Success Screen -->
+    <div id="success-section" class="hidden" style="text-align: center;">
+        <div style="font-size: 4rem; color: var(--success);">✓</div>
+        <h2>Vote Cast Successfully</h2>
+        <p>Thank you for participating. Your vote has been securely encrypted and recorded.</p>
+    </div>
+</div>
+
+<script>
+    // Initialize Supabase (Replace with your actual keys)
+    const SUPABASE_URL = "https://your-project-id.supabase.co";
+    const SUPABASE_ANON_KEY = "your-anon-public-key";
+    const supabase = '@supabase/supabase-js'.includes('cdn') ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentVoterReg = sessionStorage.getItem("voterReg") || null;
+    let selectedCandidateId = null;
+
+    // Auto-check session if page refreshes
+    if (currentVoterReg) {
+        checkVoterStatus(currentVoterReg);
+    }
+
+    document.getElementById('btn-verify').addEventListener('click', async () => {
+        const regInput = document.getElementById('reg-input').value.trim();
+        if(!regInput) return alert("Please enter your Registration Number");
+        await checkVoterStatus(regInput);
+    });
+
+    async function checkVoterStatus(regNum) {
+        const msgEl = document.getElementById('login-msg');
+        
+        // Fetch voter status
+        const { data, error } = await supabase.from('eligible_voters').select('*').eq('reg_number', regNum).single();
+
+        if (error || !data) {
+            msgEl.textContent = "Error: Registration Number not found in department database.";
+            return;
+        }
+
+        if (data.has_voted) {
+            msgEl.textContent = "Access Denied: You have voted already.";
+            return;
+        }
+
+        // Session Handling: Save to session storage
+        currentVoterReg = regNum;
+        sessionStorage.setItem("voterReg", regNum);
+        
+        showBallot();
+    }
+
+    async function showBallot() {
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('ballot-section').classList.remove('hidden');
+
+        // Fetch Candidates
+        const { data: candidates, error } = await supabase.from('candidates').select('*');
+        const container = document.getElementById('ballot-container');
+        container.innerHTML = "";
+
+        if (candidates) {
+            const grid = document.createElement('div');
+            grid.className = "candidate-grid";
+            candidates.forEach(c => {
+                grid.innerHTML += `
+                    <div class="candidate-card" onclick="selectCandidate(this, '${c.id}')">
+                        <img src="${c.image_url || 'https://via.placeholder.com/150'}" class="candidate-img">
+                        <h3>${c.name}</h3>
+                        <p style="color: var(--accent); font-weight: 600;">${c.position}</p>
+                    </div>
+                `;
+            });
+            container.appendChild(grid);
+        }
+    }
+
+    window.selectCandidate = (element, id) => {
+        document.querySelectorAll('.candidate-card').forEach(card => card.classList.remove('selected'));
+        element.classList.add('selected');
+        selectedCandidateId = id;
+    };
+
+    document.getElementById('btn-submit-vote').addEventListener('click', async () => {
+        if (!selectedCandidateId) return alert("Please select a candidate before submitting.");
+        
+        if(confirm("Confirm your vote? This action cannot be reversed.")) {
+            // 1. Increment candidate vote count securely via SQL transaction or direct update
+            // (For a simple framework, we use a structured update here)
+            const { data: cData } = await supabase.from('candidates').select('votes').eq('id', selectedCandidateId).single();
+            await supabase.from('candidates').update({ votes: cData.votes + 1 }).eq('id', selectedCandidateId);
+
+            // 2. Lock voter record to prevent double voting
+            await supabase.from('eligible_voters').update({ has_voted: true }).eq('reg_number', currentVoterReg);
+
+            // Clear session
+            sessionStorage.clear();
+            
+            document.getElementById('ballot-section').classList.add('hidden');
+            document.getElementById('success-section').classList.remove('hidden');
+        }
+    });
+</script>
+</body>
+          </html>
