@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Mass Comm Elections</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="container" style="max-width: 1000px;">
+    <h1>Admin Panel - Dashboard</h1>
+
+    <!-- Phase 1: Admin Login -->
+    <div id="admin-login">
+        <h3>Secure Administrator Authentication</h3><br>
+        <div class="form-group"><label>Email</label><input type="email" id="admin-email"></div>
+        <div class="form-group"><label>Password</label><input type="password" id="admin-pass"></div>
+        <button id="btn-admin-login">Authenticate</button>
+    </div>
+
+    <!-- Phase 2: Management Controls -->
+    <div id="admin-dashboard" class="hidden">
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            
+            <!-- Register Voters -->
+            <div style="flex: 1; min-width: 300px; background: #f8fafc; padding: 20px; border-radius: 8px;">
+                <h3>Upload Eligible Reg Numbers</h3><br>
+                <textarea id="voter-list" style="width:100%; height: 100px; padding: 10px;" placeholder="Paste Reg Numbers separated by commas..."></textarea>
+                <button id="btn-upload-voters" style="margin-top:10px; background: var(--primary);">Add Voters to Database</button>
+            </div>
+
+            <!-- Manage Candidates -->
+            <div style="flex: 1; min-width: 300px; background: #f8fafc; padding: 20px; border-radius: 8px;">
+                <h3>Add New Candidate</h3><br>
+                <div class="form-group"><input type="text" id="cand-name" placeholder="Full Name"></div>
+                <div class="form-group"><input type="text" id="cand-pos" placeholder="Position (e.g. President)"></div>
+                <div class="form-group"><input type="text" id="cand-img" placeholder="Image URL (hosted on web)"></div>
+                <button id="btn-add-candidate">Save Candidate</button>
+            </div>
+        </div>
+
+        <!-- Real-Time Metrics -->
+        <div class="realtime-results">
+            <h3>🔴 Live Real-Time Election Results</h3>
+            <div id="results-display" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SUPABASE_URL = "https://your-project-id.supabase.co";
+    const SUPABASE_ANON_KEY = "your-anon-public-key";
+    const supabase = '@supabase/supabase-js'.includes('cdn') ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    document.getElementById('btn-admin-login').addEventListener('click', async () => {
+        const email = document.getElementById('admin-email').value;
+        const password = document.getElementById('admin-pass').value;
+
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) alert("Authentication failed: " + error.message);
+        else loadDashboard();
+    });
+
+    function loadDashboard() {
+        document.getElementById('admin-login').classList.add('hidden');
+        document.getElementById('admin-dashboard').classList.remove('hidden');
+        
+        loadLiveResults();
+        
+        // Enable Real-Time Database Subscriptions
+        supabase.channel('schema-db-changes')
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'candidates' }, payload => {
+              loadLiveResults(); // Instantly refreshes metrics on interface when a vote happens
+          })
+          .subscribe();
+    }
+
+    async function loadLiveResults() {
+        const { data: candidates } = await supabase.from('candidates').select('*');
+        const display = document.getElementById('results-display');
+        display.innerHTML = "";
+
+        if(candidates) {
+            const totalVotes = candidates.reduce((sum, c) => sum + c.votes, 0) || 1;
+            candidates.forEach(c => {
+                const percentage = Math.round((c.votes / totalVotes) * 100);
+                display.innerHTML += `
+                    <div style="margin-bottom: 15px;">
+                        <strong>${c.name} (${c.position})</strong> - ${c.votes} votes
+                        <div class="result-bar-container">
+                            <div class="result-bar" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+    }
+
+    document.getElementById('btn-upload-voters').addEventListener('click', async () => {
+        const rawList = document.getElementById('voter-list').value.split(',');
+        const records = rawList.map(reg => ({ reg_number: reg.trim(), has_voted: false }));
+
+        const { error } = await supabase.from('eligible_voters').insert(records);
+        if (error) alert("Error saving records: " + error.message);
+        else alert("Voter registration numbers successfully locked in database!");
+    });
+
+    document.getElementById('btn-add-candidate').addEventListener('click', async () => {
+        const name = document.getElementById('cand-name').value;
+        const position = document.getElementById('cand-pos').value;
+        const image_url = document.getElementById('cand-img').value;
+
+        const { error } = await supabase.from('candidates').insert([{ name, position, image_url }]);
+        if (error) alert("Error: " + error.message);
+        else { alert("Candidate added!"); loadLiveResults(); }
+    });
+</script>
+</body>
+</html>
