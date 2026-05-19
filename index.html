@@ -83,30 +83,39 @@
         
         showBallot();
     }
-
     async function showBallot() {
-        document.getElementById('login-section').classList.add('hidden');
-        document.getElementById('ballot-section').classList.remove('hidden');
+    document.getElementById('login-section').classList.add('hidden');
+    document.getElementById('ballot-section').classList.remove('hidden');
 
-        // Fetch Candidates
-        const { data: candidates, error } = await supabase.from('candidates').select('*');
-        const container = document.getElementById('ballot-container');
-        container.innerHTML = "";
+    // Fetch Candidates from Supabase
+    const { data: candidates, error } = await supabase.from('candidates').select('*');
+    const container = document.getElementById('ballot-container');
+    container.innerHTML = "";
 
-        if (candidates) {
-            const grid = document.createElement('div');
-            grid.className = "candidate-grid";
-            candidates.forEach(c => {
-                grid.innerHTML += `
-                    <div class="candidate-card" onclick="selectCandidate(this, '${c.id}')">
-                        <img src="${c.image_url || 'https://via.placeholder.com/150'}" class="candidate-img">
-                        <h3>${c.name}</h3>
-                        <p style="color: var(--accent); font-weight: 600;">${c.position}</p>
-                    </div>
-                `;
-            });
-            container.appendChild(grid);
-        }
+    if (error) {
+        alert("Error fetching candidates: " + error.message);
+        return;
+    }
+
+    if (candidates && candidates.length > 0) {
+        const grid = document.createElement('div');
+        grid.className = "candidate-grid";
+        
+        candidates.forEach(c => {
+            // CRUCIAL: '${c.id}' is wrapped in single quotes so JavaScript 
+            // passes the long secure UUID string safely to the selection function
+            grid.innerHTML += `
+                <div class="candidate-card" onclick="selectCandidate(this, '${c.id}')">
+                    <img src="${c.image_url || 'https://via.placeholder.com/150'}" class="candidate-img">
+                    <h3>${c.name}</h3>
+                    <p style="color: var(--accent); font-weight: 600;">${c.position}</p>
+                </div>
+            `;
+        });
+        container.appendChild(grid);
+    } else {
+        container.innerHTML = "<p style='text-align:center;color:gray;'>No candidates uploaded yet for this election.</p>";
+    }
     }
 
     window.selectCandidate = (element, id) => {
