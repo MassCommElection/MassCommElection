@@ -108,14 +108,28 @@
     });
 
     document.getElementById('btn-add-candidate').addEventListener('click', async () => {
-        const name = document.getElementById('cand-name').value;
-        const position = document.getElementById('cand-pos').value;
-        const image_url = document.getElementById('cand-img').value;
+    const name = document.getElementById('cand-name').value.trim();
+    const position = document.getElementById('cand-pos').value.trim();
+    const image_url = document.getElementById('cand-img').value.trim();
 
-        const { error } = await supabase.from('candidates').insert([{ name, position, image_url }]);
-        if (error) alert("Error: " + error.message);
-        else { alert("Candidate added!"); loadLiveResults(); }
-    });
+    if(!name || !position) return alert("Please fill in candidate Name and Position.");
+
+    // NOTICE: We do NOT pass an 'id' field here anymore. 
+    // The database script we ran will automatically create a secure UUID for it!
+    const { error } = await supabase
+        .from('candidates')
+        .insert([{ name, position, image_url }]);
+
+    if (error) {
+        alert("Error adding candidate: " + error.message);
+    } else { 
+        alert("Candidate added successfully!"); 
+        document.getElementById('cand-name').value = '';
+        document.getElementById('cand-pos').value = '';
+        document.getElementById('cand-img').value = '';
+        if(typeof loadLiveResults === 'function') loadLiveResults(); 
+    }
+});
   }); 
 </script>
 </body>
