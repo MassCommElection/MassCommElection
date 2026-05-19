@@ -28,3 +28,5 @@ button:hover { background: #1d4ed8; }
 .realtime-results { margin-top: 30px; padding: 15px; background: #f1f5f9; border-radius: 8px; }
 .result-bar-container { background: #e2e8f0; border-radius: 4px; height: 20px; width: 100%; margin-top: 5px; overflow: hidden; }
 .result-bar { background: var(--success); height: 100%; width: 0%; transition: width 0.5s ease-out; }
+
+.candidate-card.selected { border: 3px solid #0056b3; }
