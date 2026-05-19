@@ -5,8 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mass Comm UNIZIK Voting Portal</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Include Supabase CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <style>
+        /* CSS fallbacks to guarantee visual feedback on category selections */
+        .candidate-card {
+            cursor: pointer;
+            border: 2px solid #e2e8f0;
+            transition: all 0.2s ease-in-out;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .candidate-card:hover {
+            transform: scale(1.02);
+            border-color: #cbd5e1;
+        }
+        .candidate-card.selected {
+            border: 3px solid #0056b3 !important;
+            background-color: #f0f7ff !important;
+            transform: scale(1.03);
+            box-shadow: 0 4px 12px rgba(0, 86, 179, 0.15);
+        }
+        .position-section {
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px dashed #e2e8f0;
+        }
+        .pos-title {
+            color: #1e293b;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
 </head>
 <body>
 
@@ -15,7 +47,6 @@
     <h1>Mass Communication Dept. Election</h1>
     <hr style="margin-bottom: 20px; border: 0; border-top: 1px solid #e2e8f0;">
 
-    <!-- Phase 1: Login Verification -->
     <div id="login-section">
         <div class="form-group">
             <label for="reg-input">Enter Registration Number</label>
@@ -25,14 +56,12 @@
         <p id="login-msg" style="color: red; text-align: center; margin-top: 10px; font-weight: 600;"></p>
     </div>
 
-    <!-- Phase 2: Ballot Paper -->
     <div id="ballot-section" class="hidden">
         <h2>Cast Your Vote</h2>
         <div id="ballot-container"></div>
         <button id="btn-submit-vote" style="margin-top: 20px;">Submit Secure Ballot</button>
     </div>
 
-    <!-- Phase 3: Success Screen -->
     <div id="success-section" class="hidden" style="text-align: center;">
         <div style="font-size: 4rem; color: var(--success);">✓</div>
         <h2>Vote Cast Successfully</h2>
@@ -41,125 +70,142 @@
 </div>
 
 <script>
-      document.addEventListener("DOMContentLoaded", function() {
-    // Initialize Supabase (Replace with your actual keys)
+    // Initialize Supabase Globally
     const SUPABASE_URL = "https://skyknpippryjlgcitajb.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNreWtucGlwcHJ5amxnY2l0YWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMjEwODAsImV4cCI6MjA5NDY5NzA4MH0.cJPmWkgRlOLOKN4DGn_veEvAFi7Xfm-iVoF_YGH6Tm0";
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // Explicit global configuration with cache busters
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } }
+    });
 
     let currentVoterReg = sessionStorage.getItem("voterReg") || null;
-    let selectedCandidateId = null;
+    let selectedVotes = {}; // Memory mapping object
 
-    // Auto-check session if page refreshes
-    if (currentVoterReg) {
-        checkVoterStatus(currentVoterReg);
-    }
-
-    document.getElementById('btn-verify').addEventListener('click', async () => {
-        const regInput = document.getElementById('reg-input').value.trim();
-        if(!regInput) return alert("Please enter your Registration Number");
-        await checkVoterStatus(regInput);
-    });
-
-    async function checkVoterStatus(regNum) {
-        const msgEl = document.getElementById('login-msg');
+    // EXPOSE SELECTION TO THE WINDOW GLOBAL SCOPE SO ONCLICK WORKS PERFECTLY
+    window.selectCategoryCandidate = function(position, candidateId) {
+        // Deselect previous choice in this specific category row if it exists
+        if (selectedVotes[position]) {
+            const oldCard = document.getElementById(`card-${selectedVotes[position]}`);
+            if (oldCard) oldCard.classList.remove('selected');
+        }
         
-        // Fetch voter status
-        const { data, error } = await supabase.from('eligible_voters').select('*').eq('reg_number', regNum).single();
+        // Save new choice mapping assignment
+        selectedVotes[position] = candidateId;
+        
+        // Render bright selection highlight frame
+        const newCard = document.getElementById(`card-${candidateId}`);
+        if (newCard) newCard.classList.add('selected');
+    };
 
-        if (error || !data) {
-            msgEl.textContent = "Error: Registration Number not found in department database.";
-            return;
+    document.addEventListener("DOMContentLoaded", function() {
+        // Run session bypass recovery securely if page refreshes
+        if (currentVoterReg) {
+            checkVoterStatus(currentVoterReg);
         }
 
-        if (data.has_voted) {
-            msgEl.textContent = "Access Denied: You have voted already.";
-            return;
-        }
-
-        // Session Handling: Save to session storage
-        currentVoterReg = regNum;
-        sessionStorage.setItem("voterReg", regNum);
-        
-        showBallot();
-    }
-    let selectedVotes = {}; // Keeps track of selections: { "President": "uuid-1", "Vice President": "uuid-2" }
-
-async function showBallot() {
-    document.getElementById('login-section').classList.add('hidden');
-    document.getElementById('ballot-section').classList.remove('hidden');
-
-    const { data: candidates, error } = await supabase.from('candidates').select('*');
-    const container = document.getElementById('ballot-container');
-    container.innerHTML = "";
-
-    if (error) return alert("Error: " + error.message);
-
-    // Group candidates by their position automatically
-    const grouped = {};
-    candidates.forEach(c => {
-        if (!grouped[c.position]) grouped[c.position] = [];
-        grouped[c.position].push(c);
-    });
-
-    // Render each position category dynamically
-    for (const position in grouped) {
-        const section = document.createElement('div');
-        section.className = "position-section";
-        section.innerHTML = `<h2 class="pos-title">${position}</h2>`;
-        
-        const grid = document.createElement('div');
-        grid.className = "candidate-grid";
-
-        grouped[position].forEach(c => {
-            grid.innerHTML += `
-                <div class="candidate-card" id="card-${c.id}" onclick="selectCategoryCandidate('${position}', '${c.id}')">
-                    <img src="${c.image_url || 'https://via.placeholder.com/150'}" class="candidate-img">
-                    <h3>${c.name}</h3>
-                </div>
-            `;
-        });
-        section.appendChild(grid);
-        container.appendChild(section);
-    }
-}
-
-// Handles selecting only ONE candidate per position row
-function selectCategoryCandidate(position, candidateId) {
-    // Deselect previous choice in this specific category row
-    if (selectedVotes[position]) {
-        document.getElementById(`card-${selectedVotes[position]}`)?.classList.remove('selected');
-    }
-    // Save new choice
-    selectedVotes[position] = candidateId;
-    document.getElementById(`card-${candidateId}`).classList.add('selected');
-}
-
-// Submit Ballot Button Update
-document.getElementById('btn-submit-vote').addEventListener('click', async () => {
-    // Extract values into an array list: ["uuid-1", "uuid-2"]
-    const candidateIdsArray = Object.values(selectedVotes);
-    
-    if (candidateIdsArray.length === 0) return alert("Please select your preferred candidates before submitting.");
-    
-    if(confirm("Are you sure you want to submit your final ballot?")) {
-        const { error } = await supabase.rpc('cast_secure_vote', {
-            target_reg_number: currentVoterReg,
-            target_candidate_ids: candidateIdsArray // Passing the array list here
+        document.getElementById('btn-verify').addEventListener('click', async () => {
+            const regInput = document.getElementById('reg-input').value.trim();
+            if(!regInput) return alert("Please enter your Registration Number");
+            await checkVoterStatus(regInput);
         });
 
-        if (error) {
-            alert("Voting Error: " + error.message);
-            sessionStorage.clear();
-            window.location.reload();
-        } else {
-            sessionStorage.clear();
-            document.getElementById('ballot-section').classList.add('hidden');
-            document.getElementById('success-section').classList.remove('hidden');
+        async function checkVoterStatus(regNum) {
+            const msgEl = document.getElementById('login-msg');
+            msgEl.textContent = ""; // Clear previous messages
+            
+            const { data, error } = await supabase.from('eligible_voters').select('*').eq('reg_number', regNum).single();
+
+            if (error || !data) {
+                msgEl.textContent = "Error: Registration Number not found in department database.";
+                sessionStorage.clear();
+                return;
+            }
+
+            if (data.has_voted) {
+                msgEl.textContent = "Access Denied: You have voted already.";
+                sessionStorage.clear();
+                return;
+            }
+
+            currentVoterReg = regNum;
+            sessionStorage.setItem("voterReg", regNum);
+            
+            // Build ballot system right after passing authorization check
+            await showBallot();
         }
-    }
-});
- }); 
+
+        async function showBallot() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('ballot-section').classList.remove('hidden');
+
+            const { data: candidates, error } = await supabase.from('candidates').select('*');
+            const container = document.getElementById('ballot-container');
+            container.innerHTML = "";
+
+            if (error) return alert("Error fetching candidate structures: " + error.message);
+
+            // Sort and group database records into positions
+            const grouped = {};
+            candidates.forEach(c => {
+                if (!grouped[c.position]) grouped[c.position] = [];
+                grouped[c.position].push(c);
+            });
+
+            // Create explicit layout groupings for each running bracket position
+            for (const position in grouped) {
+                const section = document.createElement('div');
+                section.className = "position-section";
+                section.innerHTML = `<h2 class="pos-title">${position}</h2>`;
+                
+                const grid = document.createElement('div');
+                grid.className = "candidate-grid";
+
+                grouped[position].forEach(c => {
+                    // Safe verification fallback image string if links break
+                    const safeImage = c.image_url ? c.image_url.trim() : 'https://api.dicebear.com/7.x/initials/svg?seed=' + encodeURIComponent(c.name);
+                    
+                    grid.innerHTML += `
+                        <div class="candidate-card" id="card-${c.id}" onclick="window.selectCategoryCandidate('${position.replace(/'/g, "\\'")}', '${c.id}')">
+                            <img src="${safeImage}" 
+                                 class="candidate-img" 
+                                 onerror="this.onerror=null; this.src='https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(c.name)}';" 
+                                 alt="${c.name}">
+                            <h3>${c.name}</h3>
+                        </div>
+                    `;
+                });
+                section.appendChild(grid);
+                container.appendChild(section);
+            }
+        }
+
+        // Processing array-bound transaction payload execution
+        document.getElementById('btn-submit-vote').addEventListener('click', async () => {
+            const candidateIdsArray = Object.values(selectedVotes);
+            
+            if (candidateIdsArray.length === 0) {
+                return alert("Please select your preferred candidates before submitting.");
+            }
+            
+            if (confirm("Are you sure you want to submit your final ballot? Changes cannot be undone.")) {
+                const { error } = await supabase.rpc('cast_secure_vote', {
+                    target_reg_number: currentVoterReg,
+                    target_candidate_ids: candidateIdsArray
+                });
+
+                if (error) {
+                    alert("Voting Transaction Failure: " + error.message);
+                    sessionStorage.clear();
+                    window.location.reload();
+                } else {
+                    sessionStorage.clear();
+                    document.getElementById('ballot-section').classList.add('hidden');
+                    document.getElementById('success-section').classList.remove('hidden');
+                }
+            }
+        });
+    });
 </script>
 </body>
-          </html>
+                </html>
