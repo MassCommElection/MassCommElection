@@ -84,71 +84,82 @@
         showBallot();
     }
     async function showBallot() {
+    let selectedVotes = {}; // Keeps track of selections: { "President": "uuid-1", "Vice President": "uuid-2" }
+
+async function showBallot() {
     document.getElementById('login-section').classList.add('hidden');
     document.getElementById('ballot-section').classList.remove('hidden');
 
-    // Fetch Candidates from Supabase
     const { data: candidates, error } = await supabase.from('candidates').select('*');
     const container = document.getElementById('ballot-container');
     container.innerHTML = "";
 
-    if (error) {
-        alert("Error fetching candidates: " + error.message);
-        return;
-    }
+    if (error) return alert("Error: " + error.message);
 
-    if (candidates && candidates.length > 0) {
+    // Group candidates by their position automatically
+    const grouped = {};
+    candidates.forEach(c => {
+        if (!grouped[c.position]) grouped[c.position] = [];
+        grouped[c.position].push(c);
+    });
+
+    // Render each position category dynamically
+    for (const position in grouped) {
+        const section = document.createElement('div');
+        section.className = "position-section";
+        section.innerHTML = `<h2 class="pos-title">${position}</h2>`;
+        
         const grid = document.createElement('div');
         grid.className = "candidate-grid";
-        
-        candidates.forEach(c => {
-            // CRUCIAL: '${c.id}' is wrapped in single quotes so JavaScript 
-            // passes the long secure UUID string safely to the selection function
+
+        grouped[position].forEach(c => {
             grid.innerHTML += `
-                <div class="candidate-card" onclick="selectCandidate(this, '${c.id}')">
+                <div class="candidate-card" id="card-${c.id}" onclick="selectCategoryCandidate('${position}', '${c.id}')">
                     <img src="${c.image_url || 'https://via.placeholder.com/150'}" class="candidate-img">
                     <h3>${c.name}</h3>
-                    <p style="color: var(--accent); font-weight: 600;">${c.position}</p>
                 </div>
             `;
         });
-        container.appendChild(grid);
-    } else {
-        container.innerHTML = "<p style='text-align:center;color:gray;'>No candidates uploaded yet for this election.</p>";
+        section.appendChild(grid);
+        container.appendChild(section);
     }
+}
+
+// Handles selecting only ONE candidate per position row
+function selectCategoryCandidate(position, candidateId) {
+    // Deselect previous choice in this specific category row
+    if (selectedVotes[position]) {
+        document.getElementById(`card-${selectedVotes[position]}`)?.classList.remove('selected');
     }
+    // Save new choice
+    selectedVotes[position] = candidateId;
+    document.getElementById(`card-${candidateId}`).classList.add('selected');
+}
 
-    window.selectCandidate = (element, id) => {
-        document.querySelectorAll('.candidate-card').forEach(card => card.classList.remove('selected'));
-        element.classList.add('selected');
-        selectedCandidateId = id;
-    };
+// Submit Ballot Button Update
+document.getElementById('btn-submit-vote').addEventListener('click', async () => {
+    // Extract values into an array list: ["uuid-1", "uuid-2"]
+    const candidateIdsArray = Object.values(selectedVotes);
+    
+    if (candidateIdsArray.length === 0) return alert("Please select your preferred candidates before submitting.");
+    
+    if(confirm("Are you sure you want to submit your final ballot?")) {
+        const { error } = await supabase.rpc('cast_secure_vote', {
+            target_reg_number: currentVoterReg,
+            target_candidate_ids: candidateIdsArray // Passing the array list here
+        });
 
-    document.getElementById('btn-submit-vote').addEventListener('click', async () => {
-        if (!selectedCandidateId) return alert("Please select a candidate before submitting.");
-        
-        if(confirm("Confirm your vote? This action cannot be reversed.")) {
-            
-            // Call the secure backend function we just pasted into Supabase
-            const { error } = await supabase.rpc('cast_secure_vote', {
-                target_reg_number: currentVoterReg,
-                target_candidate_id: selectedCandidateId
-            });
-
-            if (error) {
-                alert("Voting Error: " + error.message);
-                // If they already voted, clear their session and kick them out
-                sessionStorage.clear();
-                window.location.reload();
-            } else {
-                // Clear session data so they can't reuse the screen state
-                sessionStorage.clear();
-                
-                document.getElementById('ballot-section').classList.add('hidden');
-                document.getElementById('success-section').classList.remove('hidden');
-            }
+        if (error) {
+            alert("Voting Error: " + error.message);
+            sessionStorage.clear();
+            window.location.reload();
+        } else {
+            sessionStorage.clear();
+            document.getElementById('ballot-section').classList.add('hidden');
+            document.getElementById('success-section').classList.remove('hidden');
         }
-    });
+    }
+});
  }); 
 </script>
 </body>
