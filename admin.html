@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | Mass Comm Elections</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 <div class="container" style="max-width: 1000px;">
@@ -49,6 +49,7 @@
 </div>
 
 <script>
+      document.addEventListener("DOMContentLoaded", function() {
     const SUPABASE_URL = "https://skyknpippryjlgcitajb.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNreWtucGlwcHJ5amxnY2l0YWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMjEwODAsImV4cCI6MjA5NDY5NzA4MH0.cJPmWkgRlOLOKN4DGn_veEvAFi7Xfm-iVoF_YGH6Tm0";
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
