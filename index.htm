@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mass Comm UNIZIK Voting Portal</title>
+    
+    <link rel="icon" type="image/png" href="images (4).png">
+    
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <div style="text-align: center; margin-bottom: 15px;">
+        <img src="images (4).png" alt="UNIZIK Logo" style="width: 85px; height: auto; object-fit: contain;">
+    </div>
+
+    <div class="header-logo">NNAMDI AZIKIWE UNIVERSITY</div>
+    <h1>Mass Communication Dept. Election</h1>
+    <hr style="margin-bottom: 20px; border: 0; border-top: 1px solid #e2e8f0;">
+ 
+    <div id="login-section">
+        <div class="form-group">
+            <label for="reg-input">Enter Registration Number</label>
+            <input type="text" id="reg-input" placeholder="e.g., 2021624000">
+        </div>
+        <div class="form-group" style="margin-top: 15px;">
+            <label for="pin-input">Enter 6-Digit Secret Voting PIN</label>
+            <input type="password" id="pin-input" placeholder="Enter PIN from your email" maxlength="6">
+        </div>
+        <button id="btn-verify" style="margin-top: 10px;">Verify & Proceed</button>
+        <p id="login-msg" style="color: red; text-align: center; margin-top: 10px; font-weight: 600;"></p>
+    </div>
+
+    <div id="ballot-section" class="hidden">
+        <h2>Cast Your Vote</h2>
+        <div id="ballot-container"></div>
+        <button id="btn-submit-vote" style="margin-top: 20px;">Submit Secure Ballot</button>
+    </div>
+
+    <div id="success-section" class="hidden" style="text-align: center;">
+        <div style="font-size: 4rem; color: var(--success);">✓</div>
+        <h2>Vote Cast Successfully</h2>
+        <p>Thank you for participating. Your vote has been securely encrypted and recorded.</p>
+    </div>
+</div>
+
+<script>
+    // DEFINE THE CLICK SELECTION FUNCTION GLOBALLY FIRST SO THE WEBSITE CAN SEE IT
+    let selectedVotes = {}; // Keeps track of selections: { "President": "uuid-1", "Vice President": "uuid-2" }
+
+    window.selectCategoryCandidate = function(position, candidateId) {
+        // Deselect previous choice in this specific category row
+        if (selectedVotes[position]) {
+            const oldCard = document.getElementById(`card-${selectedVotes[position]}`);
+            if (oldCard) oldCard.classList.remove('selected');
+        }
+        // Save new choice
+        selectedVotes[position] = candidateId;
+        
+        const newCard = document.getElementById(`card-${candidateId}`);
+        if (newCard) newCard.classList.add('selected');
+    };
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // Initialize Supabase
+        const SUPABASE_URL = "https://skyknpippryjlgcitajb.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNreWtucGlwcHJ5amxnY2l0YWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMjEwODAsImV4cCI6MjA5NDY5NzA4MH0.cJPmWkgRlOLOKN4DGn_veEvAFi7Xfm-iVoF_YGH6Tm0";
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentVoterReg = sessionStorage.getItem("voterReg") || null;
+        let currentVoterPin = sessionStorage.getItem("voterPin") || null; // Tracked session structure update
+
+        // Auto-check session if page refreshes
+        if (currentVoterReg && currentVoterPin) {
+            checkVoterStatus(currentVoterReg, currentVoterPin);
+        }
+
+        document.getElementById('btn-verify').addEventListener('click', async () => {
+            const regInput = document.getElementById('reg-input').value.trim();
+            const pinInput = document.getElementById('pin-input').value.trim(); // Capturing PIN entry
+            
+            if(!regInput || !pinInput) return alert("Please enter both your Registration Number and Secret PIN.");
+            await checkVoterStatus(regInput, pinInput);
+        });
+
+        async function checkVoterStatus(regNum, voterPin) {
+            const msgEl = document.getElementById('login-msg');
+            msgEl.textContent = ""; // Clear out previous messages
+            
+            // Fetch voter status
+            const { data, error } = await supabase.from('eligible_voters').select('*').eq('reg_number', regNum).single();
+
+            if (error || !data) {
+                msgEl.textContent = "Error: Registration Number not found in department database.";
+                sessionStorage.clear();
+                return;
+            }
+
+            if (data.has_voted) {
+                msgEl.textContent = "Access Denied: You have voted already.";
+                sessionStorage.clear();
+                return;
+            }
+
+            // ENFORCED SECURITY: Validate email PIN before granting access
+            if (!data.secret_pin || data.secret_pin !== voterPin) {
+                msgEl.textContent = "Security Rejection: Invalid Secret Voting PIN provided.";
+                sessionStorage.clear();
+                return;
+            }
+
+            // Session Handling: Save safe validated data parameters
+            currentVoterReg = regNum;
+            currentVoterPin = voterPin;
+            sessionStorage.setItem("voterReg", regNum);
+            sessionStorage.setItem("voterPin", voterPin);
+            
+            showBallot();
+        }
+
+        async function showBallot() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('ballot-section').classList.remove('hidden');
+
+            const { data: candidates, error } = await supabase.from('candidates').select('*');
+            const container = document.getElementById('ballot-container');
+            container.innerHTML = "";
+
+            if (error) return alert("Error: " + error.message);
+
+            // Group candidates by their position automatically
+            const grouped = {};
+            candidates.forEach(c => {
+                if (!grouped[c.position]) grouped[c.position] = [];
+                grouped[c.position].push(c);
+            });
+
+            // Render each position category dynamically
+            for (const position in grouped) {
+                const section = document.createElement('div');
+                section.className = "position-section";
+                section.innerHTML = `<h2 class="pos-title">${position}</h2>`;
+                
+                const grid = document.createElement('div');
+                grid.className = "candidate-grid";
+
+                grouped[position].forEach(c => {
+                    const userImg = c.image_url ? c.image_url : `https://api.dicebear.com/7.x/initials/svg?seed=${c.name}`;
+                    
+                    grid.innerHTML += `
+                        // Fixed string escaping inside inline click parameter logic
+                        <div class="candidate-card" id="card-${c.id}" onclick="window.selectCategoryCandidate('${position.replace(/'/g, "\\'")}', '${c.id}')">
+                            <img src="${userImg}" class="candidate-img" onerror="this.onerror=null; this.src='https://api.dicebear.com/7.x/initials/svg?seed=${c.name}';">
+                            <h3>${c.name}</h3>
+                        </div>
+                    `;
+                });
+                section.appendChild(grid);
+                container.appendChild(section);
+            }
+        }
+
+        // Submit Ballot Button Update
+        document.getElementById('btn-submit-vote').addEventListener('click', async () => {
+            const candidateIdsArray = Object.values(selectedVotes);
+            
+            if (candidateIdsArray.length === 0) return alert("Please select your preferred candidates before submitting.");
+            
+            if(confirm("Are you sure you want to submit your final ballot?")) {
+                const { error } = await supabase.rpc('cast_secure_vote', {
+                    target_reg_number: currentVoterReg,
+                    target_candidate_ids: candidateIdsArray
+                });
+
+                if (error) {
+                    alert("Voting Error: " + error.message);
+                    sessionStorage.clear();
+                    window.location.reload();
+                } else {
+                    sessionStorage.clear();
+                    document.getElementById('ballot-section').classList.add('hidden');
+                    document.getElementById('success-section').classList.remove('hidden');
+                }
+            }
+        });
+    }); 
+</script>
+</body>
+</html>
