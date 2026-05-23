@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mass Comm UNIZIK - Admin Portal</title>
+    
+    <link rel="icon" type="image/png" href="images (4).png">
+    
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <div style="text-align: center; margin-bottom: 15px;">
+        <img src="images (4).png" alt="UNIZIK Logo" style="width: 85px; height: auto; object-fit: contain;">
+    </div>
+
+    <div class="header-logo">MASS COMMUNICATION</div>
+    <h1>Election Admin Dashboard</h1>
+    <hr style="margin-bottom: 20px; border: 0; border-top: 1px solid #e2e8f0;">
+
+    <div id="admin-login">
+        <h3>Secure Administrator Authentication</h3><br>
+        <div class="form-group"><label>Email</label><input type="email" id="admin-email"></div>
+        <div class="form-group"><label>Password</label><input type="password" id="admin-pass"></div>
+        <button id="btn-admin-login">Authenticate</button>
+    </div>
+
+    <div id="admin-dashboard" class="hidden">
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            
+            <div style="flex: 1; min-width: 300px; background: #f8fafc; padding: 20px; border-radius: 8px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <h3>Voter Registry & System Controls</h3><br>
+                    <p style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">
+                        Bulk voter uploads via Excel CSV documents, live identity checking logs, status condition monitoring, and post-election clearing routines have been unified inside the secure verification panel environment.
+                    </p>
+                </div>
+                <button onclick="window.open('verify.html', '_blank')" style="margin-top:20px; background: #0f172a;">Open Operational Control Center ↗</button>
+            </div>
+
+            <div style="flex: 1; min-width: 300px; background: #f8fafc; padding: 20px; border-radius: 8px;">
+                <h3>Add New Candidate</h3><br>
+                <div class="form-group"><input type="text" id="cand-name" placeholder="Full Name"></div>
+                <div class="form-group"><input type="text" id="cand-pos" placeholder="Position (e.g. President)"></div>
+                <div class="form-group"><input type="text" id="cand-img" placeholder="Image URL (hosted on web)"></div>
+                <button id="btn-add-candidate">Save Candidate</button>
+            </div>
+        </div>
+
+        <div class="realtime-results" style="margin-top: 30px;">
+            <h3>🔴 Live Real-Time Election Results</h3>
+            <div id="results-display" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const SUPABASE_URL = "https://skyknpippryjlgcitajb.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNreWtucGlwcHJ5amxnY2l0YWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMjEwODAsImV4cCI6MjA5NDY5NzA4MH0.cJPmWkgRlOLOKN4DGn_veEvAFi7Xfm-iVoF_YGH6Tm0";
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        document.getElementById('btn-admin-login').addEventListener('click', async () => {
+            const email = document.getElementById('admin-email').value;
+            const password = document.getElementById('admin-pass').value;
+
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) alert("Authentication failed: " + error.message);
+            else loadDashboard();
+        });
+
+        function loadDashboard() {
+            document.getElementById('admin-login').classList.add('hidden');
+            document.getElementById('admin-dashboard').classList.remove('hidden');
+            
+            loadLiveResults();
+            
+            // Enable Real-Time Database Subscriptions
+            supabase.channel('schema-db-changes')
+              .on('postgres_changes', { event: '*', schema: 'public', table: 'candidates' }, payload => {
+                  loadLiveResults(); // Instantly refreshes metrics on interface when any vote or update happens
+              })
+              .subscribe();
+        }
+
+        async function loadLiveResults() {
+            const { data: candidates } = await supabase.from('candidates').select('*').order('votes', { ascending: false });
+            const display = document.getElementById('results-display');
+            display.innerHTML = "";
+
+            if(candidates && candidates.length > 0) {
+                // Group votes by position so tracking percentages per position tier makes structural sense
+                const totalVotesByPos = {};
+                candidates.forEach(c => {
+                    totalVotesByPos[c.position] = (totalVotesByPos[c.position] || 0) + c.votes;
+                });
+
+                candidates.forEach(c => {
+                    const postTotal = totalVotesByPos[c.position] || 1;
+                    const percentage = postTotal > 0 ? Math.round((c.votes / postTotal) * 100) : 0;
+                    display.innerHTML += `
+                        <div style="margin-bottom: 15px; padding: 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <strong>${c.name} <span style="color:#64748b; font-weight: normal;">(${c.position})</span></strong>
+                                <span><strong>${c.votes}</strong> votes (${percentage}%)</span>
+                            </div>
+                            <div class="result-bar-container" style="background: #e2e8f0; height: 10px; border-radius: 5px; overflow: hidden;">
+                                <div class="result-bar" style="width: ${percentage}%; background: var(--accent); height: 100%; transition: width 0.4s ease;"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                display.innerHTML = `<p style="text-align:center; color:#64748b;">No candidate entries stored inside database structures yet.</p>`;
+            }
+        }
+
+        document.getElementById('btn-add-candidate').addEventListener('click', async () => {
+            const name = document.getElementById('cand-name').value.trim();
+            const position = document.getElementById('cand-pos').value.trim();
+            const image_url = document.getElementById('cand-img').value.trim();
+
+            if(!name || !position) return alert("Please fill in candidate Name and Position.");
+
+            const { error } = await supabase
+                .from('candidates')
+                .insert([{ name, position, image_url: image_url || null, votes: 0 }]);
+
+            if (error) {
+                alert("Error adding candidate: " + error.message);
+            } else { 
+                alert("Candidate added successfully!"); 
+                document.getElementById('cand-name').value = '';
+                document.getElementById('cand-pos').value = '';
+                document.getElementById('cand-img').value = '';
+                loadLiveResults(); 
+            }
+        });
+    }); 
+</script>
+</body>
+</html>
