@@ -106,7 +106,7 @@
     </div>
 </div>
 
-<script>
+<script>       
     const SUPABASE_URL = "https://skyknpippryjlgcitajb.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNreWtucGlwcHJ5amxnY2l0YWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMjEwODAsImV4cCI6MjA5NDY5NzA4MH0.cJPmWkgRlOLOKN4DGn_veEvAFi7Xfm-iVoF_YGH6Tm0";
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -114,6 +114,7 @@
     const RESEND_API_KEY = "re_XwRoxxUv_Ns6y9i8E7C8Z2S8YgGgR1pP"; 
     let targetStudent = null;
 
+    // FIX 1: Upgraded Login Routine with Explicit Layout Overrides
     document.getElementById('btn-login-admin').addEventListener('click', async () => {
         const email = document.getElementById('admin-email').value.trim();
         const password = document.getElementById('admin-pass').value;
@@ -125,7 +126,7 @@
         if (error) {
             alert("Access Denied: " + error.message);
         } else {
-            // FIX 1: Explicit style properties bypass CSS file visual blocking anomalies
+            // Force the layout to change visually
             document.getElementById('admin-auth-section').style.display = "none";
             document.getElementById('accreditation-workspace').style.display = "block";
             document.getElementById('panel-title').textContent = "Executive System Dashboard";
@@ -133,10 +134,11 @@
         }
     });
 
+    // FIX 2: Fixed the Event Crash inside the tab switching function
     window.switchTab = function(tabName) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
         
-        // FIX 2: Fixed broken global window inline event reference loop
+        // Remove active class from all buttons, then add it to the correct one dynamically
         const tabs = document.querySelectorAll('.tab-btn');
         tabs.forEach(btn => {
             btn.classList.remove('active');
@@ -196,7 +198,7 @@
             
             if(res.ok) { 
                 alert("PIN dispatched securely to mail endpoint."); 
-                // FIX 3: Replaced page reload wipe. Updates view inline to avoid logging you out!
+                // FIX 3: Prevented window reload logout bug
                 document.getElementById('action-box').classList.add('hidden');
                 document.getElementById('search-reg').value = "";
                 document.getElementById('search-msg').style.color = "green";
