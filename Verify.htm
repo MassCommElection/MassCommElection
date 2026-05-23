@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNIZIK Election - Administrative Control Desk</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="container" style="max-width: 950px;">
+    <div style="text-align: center; margin-bottom: 15px;">
+        <img src="images (4).png" alt="UNIZIK Logo" style="width: 80px; height: auto;">
+    </div>
+    <div class="header-logo">UNIZIK MASS COMM ELECTORAL COMMISSION</div>
+    <h1 id="panel-title">System Authorization Gate</h1>
+    <hr style="margin-bottom: 20px; border: 0; border-top: 1px solid #e2e8f0;">
+
+    <div id="admin-auth-section" style="display: block;">
+        <div class="form-group">
+            <label for="admin-pass">Enter Administrative Secret Passcode</label>
+            <input type="password" id="admin-pass" placeholder="Enter security desk authorization token...">
+        </div>
+        <button id="btn-login-admin" style="margin-top: 15px;">Verify Security Access</button>
+    </div>
+
+    <div id="accreditation-workspace" style="display: none;">
+        <div style="margin-bottom: 25px; text-align: center;">
+            <button class="tab-btn active" onclick="switchTab('search')">Accreditation Desk</button>
+            <button class="tab-btn" onclick="switchTab('upload')">Bulk Upload Registry</button>
+            <button class="tab-btn" onclick="switchTab('directory')">Voter Directory</button>
+            <button class="tab-btn" onclick="switchTab('maintenance')" style="background: #fef2f2; color: #991b1b;">System Reset</button>
+        </div>
+
+        <div id="tab-search" class="tab-content">
+            <div class="form-group">
+                <label for="search-reg">Search Voter Registration Number</label>
+                <input type="text" id="search-reg" placeholder="e.g., 2021624000">
+            </div>
+            <button id="btn-search">Locate Record</button>
+            <p id="search-msg" style="text-align: center; margin-top: 15px; font-weight: 600;"></p>
+
+            <div id="action-box" class="hidden" style="margin-top: 20px; padding: 20px; border: 2px solid #cbd5e1; border-radius: 8px; background: white;">
+                <p><strong>Registration ID:</strong> <span id="display-reg"></span></p>
+                <p><strong>Linked Email Address:</strong> <span id="display-email"></span></p>
+                <p style="margin-bottom: 15px;"><strong>Accreditation Index:</strong> <span id="display-status"></span></p>
+                <button id="btn-send-pin" style="background: var(--success);">Issue Secure Entry Token</button>
+            </div>
+        </div>
+
+        <div id="tab-upload" class="tab-content hidden">
+            <div class="admin-box">
+                <h3>Bulk Import Student Registry</h3>
+                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 15px;">
+                    Upload a spreadsheet with two columns labeled: <strong>reg_number</strong> and <strong>email</strong> saved as a <strong>.CSV file</strong>.
+                </p>
+                <input type="file" id="csv-file-input" accept=".csv" style="border: 2px dashed #cbd5e1; padding: 20px; background: white; text-align: center; width: 100%;">
+                <button id="btn-process-csv" style="margin-top: 15px; background: #0f172a;">Process and Populate Registry</button>
+            </div>
+
+            <div class="admin-box" style="border-color: #bbf7d0; background: #f0fdf4; margin-top: 20px;">
+                <h3 style="color: #16a34a;">Mass Remote PIN Email Dispatcher</h3>
+                <p style="font-size: 0.85rem; color: #166534; margin-bottom: 15px;">
+                    Use this button after uploading a level's CSV file (e.g., Year 1 at 8:00 AM). The system will automatically find all voters who haven't received a PIN yet, create a 6-digit access code for them, and email it out completely on autopilot.
+                </p>
+                <button id="btn-mass-blast" style="background: var(--success);">Generate & Blast PINs to New Voters</button>
+                <p id="blast-progress" style="margin-top:10px; font-weight: bold; color: #166534; text-align: center;"></p>
+            </div>
+        </div>
+
+        <div id="tab-directory" class="tab-content hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3>Registered Electoral Population</h3>
+                <button onclick="loadVoterDirectory()" style="width: auto; padding: 6px 12px; font-size: 0.8rem;">Refresh Table</button>
+            </div>
+            <div style="max-height: 400px; overflow-y: auto; background: white; border: 1px solid #cbd5e1;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Registration Number</th>
+                            <th>Email Address</th>
+                            <th>Status Condition</th>
+                        </tr>
+                    </thead>
+                    <tbody id="directory-table-body">
+                        <tr><td colspan="3" style="text-align: center; color: #64748b;">Click refresh to load...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-maintenance" class="tab-content hidden">
+            <div class="admin-box" style="border-color: #fca5a5; background: #fff5f5;">
+                <h3 style="color: #991b1b;">Electoral Environment Decommissioning</h3>
+                <p style="font-size: 0.85rem; color: #7f1d1d; margin-bottom: 15px;">
+                    Warning! Executing this step permanently destroys all voter directories, deletes all candidates data, clears counters, and completely zeroes the project out.
+                </p>
+                <button id="btn-master-wipe" style="background: #dc2626;">Purge All Voters & Candidates Records</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>       
+    const CONFIG_URL = "https://skyknpippryjlgcitajb.supabase.co";
+    const CONFIG_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNreWtucGlwcHJ5amxnY2l0YWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMjEwODAsImV4cCI6MjA5NDY5NzA4MH0.cJPmWkgRlOLOKN4DGn_veEvAFi7Xfm-iVoF_YGH6Tm0";
+    
+    // FIX: Renamed variable to dbClient to prevent the fatal collision with window.supabase
+    const dbClient = window.supabase.createClient(CONFIG_URL, CONFIG_KEY);
+
+    const RESEND_API_KEY = "re_XwRoxxUv_Ns6y9i8E7C8Z2S8YgGgR1pP"; 
+    let targetStudent = null;
+
+    window.switchTab = function(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        const tabs = document.querySelectorAll('.tab-btn');
+        tabs.forEach(btn => {
+            btn.classList.remove('active');
+            if(btn.getAttribute('onclick').includes(tabName)) btn.classList.add('active');
+        });
+        document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+        if(tabName === 'directory') loadVoterDirectory();
+    };
+
+    document.getElementById('btn-login-admin').addEventListener('click', async () => {
+        const passcode = document.getElementById('admin-pass').value.trim();
+        if(!passcode) return alert("Please enter the operational passcode.");
+
+        const { error: authErr } = await dbClient.auth.signInAnonymously();
+        if(authErr) return alert("Connection Error: " + authErr.message);
+
+        const { data: accessGranted, error: rpcErr } = await dbClient.rpc('verify_admin_passcode', { typed_passcode: passcode });
+        
+        if (rpcErr || !accessGranted) {
+            alert("Access Denied: Secure Passcode Invalid.");
+        } else {
+            document.getElementById('admin-auth-section').style.display = "none";
+            document.getElementById('accreditation-workspace').style.display = "block";
+            document.getElementById('panel-title').textContent = "Executive System Dashboard";
+            switchTab('search');
+        }
+    });
+
+    document.getElementById('btn-search').addEventListener('click', async () => {
+        const searchReg = document.getElementById('search-reg').value.trim();
+        const msg = document.getElementById('search-msg');
+        const box = document.getElementById('action-box');
+        msg.textContent = ""; box.classList.add('hidden'); targetStudent = null;
+
+        if(!searchReg) return alert("Type registration value.");
+
+        const { data, error } = await dbClient.from('eligible_voters').select('*').eq('reg_number', searchReg).single();
+        if (error || !data) { msg.style.color = "red"; msg.textContent = "Student Record Not Found."; return; }
+
+        targetStudent = data;
+        document.getElementById('display-reg').textContent = data.reg_number;
+        document.getElementById('display-email').textContent = data.email || "N/A";
+        
+        const stEl = document.getElementById('display-status');
+        if(data.has_voted) { stEl.innerHTML = '<span class="badge badge-voted">VOTED</span>'; document.getElementById('btn-send-pin').style.display="none"; }
+        else if(data.secret_pin) { stEl.innerHTML = '<span class="badge badge-pin">PIN DISPATCHED</span>'; document.getElementById('btn-send-pin').style.display="block"; document.getElementById('btn-send-pin').textContent="Re-send Verification Token"; }
+        else { stEl.innerHTML = '<span class="badge badge-ready">READY TO ACCREDIT</span>'; document.getElementById('btn-send-pin').style.display="block"; document.getElementById('btn-send-pin').textContent="Generate & Send Secure PIN"; }
+        box.classList.remove('hidden');
+    });
+
+    document.getElementById('btn-send-pin').addEventListener('click', async () => {
+        if(!targetStudent || !targetStudent.email) return alert("Email string corrupt.");
+        const token = Math.floor(100000 + Math.random() * 900000).toString();
+
+        const { error: dbErr } = await dbClient.from('eligible_voters').update({ secret_pin: token }).eq('reg_number', targetStudent.reg_number);
+        if(dbErr) return alert("Database locked: " + dbErr.message);
+
+        try {
+            const res = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    from: 'UNIZIK Elections <onboarding@resend.dev>',
+                    to: targetStudent.email,
+                    subject: 'Your Secure Voting Access PIN',
+                    html: `<div style="font-family:sans-serif;padding:20px;border:1px solid #e2e8f0;border-radius:8px;">
+                            <h2>Mass Comm Voting Access</h2>
+                            <p>Your unique dynamic authorization passcode is:</p>
+                            <div style="font-size:2rem;font-weight:bold;padding:15px;background:#f1f5f9;text-align:center;letter-spacing:3px;">${token}</div>
+                           </div>`
+                })
+            });
+            
+            if(res.ok) { 
+                alert("PIN dispatched securely to mail endpoint."); 
+                document.getElementById('action-box').classList.add('hidden');
+                document.getElementById('search-reg').value = "";
+                document.getElementById('search-msg').style.color = "green";
+                document.getElementById('search-msg').textContent = "Token processed cleanly.";
+            } else { 
+                alert("Mail Server error occurred."); 
+            }
+        } catch(e) { alert("Network dropped execution thread."); }
+    });
+
+    document.getElementById('btn-process-csv').addEventListener('click', () => {
+        const fileInput = document.getElementById('csv-file-input');
+        if(fileInput.files.length === 0) return alert("Please upload a .CSV target register document.");
+        
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = async function(e) {
+            const text = e.target.result;
+            const lines = text.split(/\r?\n/);
+            const batchInserts = [];
+            
+            for(let i = 1; i < lines.length; i++) {
+                if(!lines[i].trim()) continue;
+                const columns = lines[i].split(',');
+                if(columns.length >= 2) {
+                    batchInserts.push({
+                        reg_number: columns[0].trim().replace(/"/g, ''),
+                        email: columns[1].trim().replace(/"/g, ''),
+                        has_voted: false
+                    });
+                }
+            }
+
+            if(batchInserts.length === 0) return alert("Parsing error: check your CSV structure.");
+
+            const { error } = await dbClient.from('eligible_voters').insert(batchInserts);
+            if(error) {
+                alert("Database Bulk Write Error: " + error.message);
+            } else {
+                alert(`Success! ${batchInserts.length} student files imported cleanly into election registry.`);
+                switchTab('directory');
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    document.getElementById('btn-mass-blast').addEventListener('click', async () => {
+        const progressEl = document.getElementById('blast-progress');
+        progressEl.textContent = "Querying new voters without access codes...";
+        
+        const { data: queue, error } = await dbClient.from('eligible_voters').select('*').is('secret_pin', null);
+        
+        if (error) return alert("Failed to fetch queue: " + error.message);
+        if (!queue || queue.length === 0) {
+            progressEl.textContent = "All uploaded voters already have access codes assigned!";
+            return;
+        }
+
+        if(!confirm(`Found ${queue.length} new voters without PINs. Begin mass background email blast process?`)) {
+            progressEl.textContent = "";
+            return;
+        }
+
+        document.getElementById('btn-mass-blast').disabled = true;
+        let successfullySent = 0;
+
+        for (let i = 0; i < queue.length; i++) {
+            const voter = queue[i];
+            const token = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            progressEl.textContent = `Processing record ${i + 1} of ${queue.length} (${voter.reg_number})...`;
+
+            const { error: updateErr } = await dbClient.from('eligible_voters').update({ secret_pin: token }).eq('reg_number', voter.reg_number);
+            
+            if (!updateErr) {
+                try {
+                    const res = await fetch('https://api.resend.com/emails', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            from: 'UNIZIK Elections <onboarding@resend.dev>',
+                            to: voter.email,
+                            subject: 'Your Secure Voting Access PIN',
+                            html: `<div style="font-family:sans-serif;padding:20px;border:1px solid #e2e8f0;border-radius:8px;max-width:500px;margin:auto;">
+                                    <h2 style="color:#2563eb;text-align:center;">UNIZIK Mass Comm Voting Access</h2>
+                                    <p>Hello Student,</p>
+                                    <p>Your unique security access passcode for the ongoing department election is:</p>
+                                    <div style="font-size:2.2rem;font-weight:bold;padding:15px;background:#f1f5f9;text-align:center;letter-spacing:4px;color:#0f172a;border-radius:6px;margin:15px 0;">${token}</div>
+                                    <p style="font-size:0.85rem;color:#64748b;text-align:center;">Do not share this authorization token with anyone.</p>
+                                   </div>`
+                        })
+                    });
+                    if (res.ok) successfullySent++;
+                } catch (e) { console.error("Network skip: ", e); }
+            }
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        alert(`Mass dispatch operation completed! Successfully sent out ${successfullySent} access PINs.`);
+        document.getElementById('btn-mass-blast').disabled = false;
+        progressEl.textContent = "All active files processed successfully.";
+        loadVoterDirectory();
+    });
+
+    async function loadVoterDirectory() {
+        const body = document.getElementById('directory-table-body');
+        body.innerHTML = '<tr><td colspan="3" style="text-align:center;">Querying records...</td></tr>';
+        
+        const { data, error } = await dbClient.from('eligible_voters').select('*').order('reg_number', { ascending: true });
+        if(error) return body.innerHTML = `<tr><td colspan="3" style="color:red;">Error checking dataset: ${error.message}</td></tr>`;
+        if(data.length === 0) return body.innerHTML = '<tr><td colspan="3" style="text-align:center;">Directory empty.</td></tr>';
+
+        body.innerHTML = "";
+        data.forEach(v => {
+            let statusBadge = '<span class="badge badge-ready">Ready</span>';
+            if(v.has_voted) statusBadge = '<span class="badge badge-voted">Voted</span>';
+            else if(v.secret_pin) statusBadge = '<span class="badge badge-pin">PIN Sent</span>';
+
+            body.innerHTML += `<tr>
+                <td><strong>${v.reg_number}</strong></td>
+                <td>${v.email}</td>
+                <td>${statusBadge}</td>
+            </tr>`;
+        });
+    }
+
+    document.getElementById('btn-master-wipe').addEventListener('click', async () => {
+        if(confirm("CRITICAL WARNING: Purging all data will erase all candidates, votes, and registers.")) {
+            if(confirm("FINAL CONFIRMATION: Type OK to complete wipe.")) {
+                const { error } = await dbClient.rpc('clean_election_environment');
+                if(error) {
+                    alert("Purge failure execution block: " + error.message);
+                } else {
+                    alert("Database context environmental wipe completed safely.");
+                    window.location.reload();
+                }
+            }
+        }
+    });
+</script>
+</body>
+</html>
