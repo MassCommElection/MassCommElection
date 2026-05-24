@@ -213,23 +213,33 @@
             
             for(let i = 1; i < lines.length; i++) {
                 if(!lines[i].trim()) continue;
+                
+                // FIXED: Robust comma splitting that clears quotes and hidden spaces
                 const columns = lines[i].split(',');
                 if(columns.length >= 2) {
-                    batchInserts.push({
-                        reg_number: columns[0].trim().replace(/"/g, ''),
-                        email: columns[1].trim().replace(/"/g, ''),
-                        has_voted: false
-                    });
+                    const cleanReg = columns[0].replace(/["']/g, "").trim();
+                    const cleanEmail = columns[1].replace(/["']/g, "").trim();
+                    
+                    if(cleanReg && cleanEmail) {
+                        batchInserts.push({
+                            reg_number: cleanReg,
+                            email: cleanEmail,
+                            has_voted: false
+                        });
+                    }
                 }
             }
 
             if(batchInserts.length === 0) return alert("Parsing error: check your CSV structure.");
 
+            // Clear old data first to avoid duplicate registration blocks
+            await dbClient.from('eligible_voters').delete().neq('reg_number', '0');
+
             const { error } = await dbClient.from('eligible_voters').insert(batchInserts);
             if(error) {
                 alert("Database Bulk Write Error: " + error.message);
             } else {
-                alert(`Success! ${batchInserts.length} student files imported cleanly into election registry.`);
+                alert(`Success! ${batchInserts.length} clean student files imported into the database layout.`);
                 switchTab('directory');
             }
         };
